@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pdfpipe-python"
+version = "0.1.1"
+description = "Official PDFPipe SDK. Turn HTML or a URL into a PDF with one call."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Johin Johny", email = "johinjohny144@gmail.com" }]
+keywords = ["pdf", "html-to-pdf", "pdf-api", "url-to-pdf", "pdfpipe", "invoice"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = ["requests>=2.20"]
+
+[project.urls]
+Homepage = "https://pdfpipe.xyz"
+Documentation = "https://pdfpipe.xyz/docs"
+Repository = "https://github.com/Johin2/pdfpipe-libraries"
+Issues = "https://github.com/Johin2/pdfpipe-libraries/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pdfpipe"]

@@ -1,0 +1,38 @@
+{
+  "name": "pdfpipe-mcp-server",
+  "version": "0.1.1",
+  "description": "MCP server for PDFPipe. Generate PDF documents (invoices, reports, certificates) from HTML or a URL in one tool call.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "pdfpipe-mcp-server": "dist/index.js"
+  },
+  "files": ["dist"],
+  "author": "Johin Johny <johinjohny144@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://pdfpipe.xyz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Johin2/pdfpipe-libraries.git",
+    "directory": "mcp"
+  },
+  "keywords": ["mcp", "pdf", "pdf-generation", "html-to-pdf", "pdfpipe", "ai-agents"],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "axios": "^1.7.9",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

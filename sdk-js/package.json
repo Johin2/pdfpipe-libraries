@@ -1,0 +1,51 @@
+﻿{
+  "name": "pdfpipe-node",
+  "version": "0.1.1",
+  "description": "Official PDFPipe SDK. Turn HTML or a URL into a PDF with one call.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "pdf",
+    "html-to-pdf",
+    "pdf-api",
+    "url-to-pdf",
+    "pdf-generation",
+    "invoice",
+    "puppeteer",
+    "headless-chrome"
+  ],
+  "author": {
+    "name": "Johin Johny",
+    "email": "johinjohny144@gmail.com"
+  },
+  "license": "MIT",
+  "homepage": "https://pdfpipe.xyz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Johin2/pdfpipe-libraries.git",
+    "directory": "sdk-js"
+  },
+  "bugs": {
+    "url": "https://github.com/Johin2/pdfpipe-libraries/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.6.0"
+  }
+}

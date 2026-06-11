@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  node-packages:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dir: [sdk-js, mcp]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+      - working-directory: ${{ matrix.dir }}
+        run: npm ci
+      - working-directory: ${{ matrix.dir }}
+        run: npm run build
+
+  python-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - working-directory: sdk-python
+        run: |
+          pip install build
+          python -m build
