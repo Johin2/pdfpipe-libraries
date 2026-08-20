@@ -49,6 +49,57 @@ Both return the raw PDF bytes. `options` is a dict, all keys optional:
 | `wait_until` | load, domcontentloaded, networkidle0, networkidle2 | networkidle0 |
 | `wait_for` | CSS selector | none |
 | `wait_ms` | up to 10000 | 0 |
+| `header_html` | HTML string | none |
+| `footer_html` | HTML string | none |
+| `tabular_nums` | bool | False |
+| `deduplicate_images` | bool | False |
+| `pdf_a` | bool | False |
+
+### Running headers and footers
+
+`header_html` and `footer_html` render on every page. Five class names are
+substituted per page as the document is laid out:
+
+| Class | Becomes |
+| --- | --- |
+| `.pageNumber` | the current page number |
+| `.totalPages` | the total page count |
+| `.date` | the render date |
+| `.title` | the document title |
+| `.url` | the source URL, when rendering from a URL |
+
+```python
+pdf = pdfpipe.from_html(
+    html,
+    {
+        "header_html": '<div style="font-size:9px;width:100%;text-align:center">Q3 Report</div>',
+        "footer_html": '<div style="font-size:9px;width:100%;text-align:center">'
+                       'Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>',
+    },
+)
+```
+
+Inline your styles. The header and footer are laid out separately from the page
+body, so a stylesheet in your HTML does not reach them, and they inherit a very
+small default font size.
+
+If you leave `margin` at its `1cm` default, the top or bottom margin widens to
+`2cm` automatically so the header or footer has room. Set `margin` yourself if
+you want different spacing.
+
+### The other three
+
+`tabular_nums` forces `font-variant-numeric: tabular-nums`, so digits share one
+width. Use it whenever a column of numbers has to line up, which is most
+invoices and statements.
+
+`deduplicate_images` merges identical image XObjects after rendering. It only
+pays off when the same image repeats across pages, a logo in a running header
+being the usual case, and it costs a little post-processing time.
+
+`pdf_a` writes PDF/A-1b XMP metadata on a best-effort basis. It marks the file
+for archival tooling but does not guarantee full conformance, which would also
+require tagged structure and an embedded ICC profile.
 
 ## Errors
 

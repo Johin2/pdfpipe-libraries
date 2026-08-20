@@ -36,6 +36,11 @@ class PdfOptions(TypedDict, total=False):
     wait_until: str  # load, domcontentloaded, networkidle0, networkidle2
     wait_for: str  # CSS selector
     wait_ms: int  # up to 10000
+    header_html: str  # running page header; .pageNumber .totalPages .date .title .url substituted
+    footer_html: str  # running page footer; same substitution as header_html
+    tabular_nums: bool  # font-variant-numeric: tabular-nums, for aligned digit columns
+    deduplicate_images: bool  # merge identical image XObjects to shrink the file
+    pdf_a: bool  # PDF/A-1b XMP metadata (best-effort)
 
 
 class PDFPipeError(Exception):
