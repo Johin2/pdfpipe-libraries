@@ -15,7 +15,12 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import axios, { AxiosError } from "axios";
 import { mkdir, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { dirname, isAbsolute, resolve, sep } from "node:path";
+
+// Read from package.json so the handshake version cannot drift from the
+// published version again; it sat at 0.3.0 while the package shipped 0.3.2.
+const PKG_VERSION = createRequire(import.meta.url)("../package.json").version as string;
 
 const BASE_URL = (process.env.PDFPIPE_BASE_URL || "https://api.pdfpipe.xyz").replace(/\/$/, "");
 const REQUEST_TIMEOUT_MS = 60_000;
@@ -56,7 +61,7 @@ const GeneratePdfInput = z
     store: z
       .boolean()
       .default(false)
-      .describe("If true, persist the PDF for later retrieval via pdfpipe_get_document. Returns document_id, document_url, and document_expires."),
+      .describe("If true, persist the PDF and return document_id, document_url, and document_expires so it can be fetched again later. There is no separate retrieval tool: use document_url."),
     filename: z
       .string()
       .max(200)
@@ -86,6 +91,52 @@ const GeneratePdfInput = z
       .boolean()
       .default(false)
       .describe("Add PDF/A-1b XMP metadata to the document (best-effort conformance). Default false."),
+    password: z
+      .string()
+      .optional()
+      .describe("Encrypt the PDF with this password. The reader is prompted for it on open."),
+    scale: z
+      .number()
+      .min(0.1)
+      .max(2)
+      .default(1)
+      .describe("Render scale, 0.1 to 2. Below 1 fits wide tables onto the page. Default 1."),
+    page_ranges: z
+      .string()
+      .optional()
+      .describe("Which pages to keep, e.g. '1-3, 5'. Omit for all pages."),
+    prefer_css_page_size: z
+      .boolean()
+      .default(false)
+      .describe("Honour the @page size and margins declared in the document CSS instead of format/margin. Default false."),
+    media: z
+      .enum(["print", "screen"])
+      .default("print")
+      .describe("CSS media type to emulate. Use 'screen' when a page hides content behind @media print. Default 'print'."),
+    inject_css: z
+      .string()
+      .optional()
+      .describe("Extra CSS applied after load. Useful for hiding cookie banners or nav when rendering a URL you do not control."),
+    wait_until: z
+      .enum(["load", "domcontentloaded", "networkidle0", "networkidle2"])
+      .default("networkidle0")
+      .describe("When to consider the page ready. Default 'networkidle0'."),
+    wait_for: z
+      .string()
+      .optional()
+      .describe("Wait for this CSS selector before rendering. Fails if it never appears within the timeout."),
+    wait_ms: z
+      .number()
+      .min(0)
+      .max(5000)
+      .default(0)
+      .describe("Fixed extra delay before rendering, up to 5000 ms. Prefer wait_for. Default 0."),
+    timeout_ms: z
+      .number()
+      .min(1000)
+      .max(60000)
+      .default(30000)
+      .describe("How long a render may take before it is abandoned, 1000 to 60000 ms. Raise for heavy pages. Default 30000."),
   })
   .strict();
 
@@ -158,7 +209,7 @@ function describeError(error: unknown): string {
 
 const server = new McpServer({
   name: "pdfpipe-mcp-server",
-  version: "0.3.0",
+  version: PKG_VERSION,
 });
 
 server.registerTool(
@@ -183,6 +234,16 @@ Args:
   - tabular_nums (boolean, optional): Force consistent digit widths for tables/invoices. Default false.
   - deduplicate_images (boolean, optional): Merge duplicate image XObjects to shrink file size. Default false.
   - pdf_a (boolean, optional): Add PDF/A-1b metadata (best-effort). Default false.
+  - password (string, optional): Encrypt the PDF with this password.
+  - scale (number, optional): Render scale 0.1 to 2, default 1. Below 1 fits wide tables.
+  - page_ranges (string, optional): Pages to keep, e.g. '1-3, 5'. Default all.
+  - prefer_css_page_size (boolean, optional): Honour @page CSS over format/margin. Default false.
+  - media ('print'|'screen', optional): CSS media to emulate, default 'print'.
+  - inject_css (string, optional): Extra CSS applied after load, e.g. to hide cookie banners.
+  - wait_until ('load'|'domcontentloaded'|'networkidle0'|'networkidle2', optional): Default 'networkidle0'.
+  - wait_for (string, optional): CSS selector to wait for before rendering.
+  - wait_ms (number, optional): Extra delay up to 5000 ms, default 0.
+  - timeout_ms (number, optional): Render timeout 1000 to 60000 ms, default 30000. Raise for heavy pages.
   - store (boolean, optional): Persist the PDF for later retrieval, default false.
   - filename (string, optional): Filename for the stored document (used with store: true).
 
@@ -242,6 +303,18 @@ Errors return a message starting with "Error:" explaining the cause (bad key, li
             ...(params.tabular_nums ? { tabular_nums: true } : {}),
             ...(params.deduplicate_images ? { deduplicate_images: true } : {}),
             ...(params.pdf_a ? { pdf_a: true } : {}),
+            // Only send what differs from the API default, so the request body
+            // stays identical for callers that set none of these.
+            ...(params.password ? { password: params.password } : {}),
+            ...(params.scale !== 1 ? { scale: params.scale } : {}),
+            ...(params.page_ranges ? { page_ranges: params.page_ranges } : {}),
+            ...(params.prefer_css_page_size ? { prefer_css_page_size: true } : {}),
+            ...(params.media === "screen" ? { media: "screen" } : {}),
+            ...(params.inject_css ? { inject_css: params.inject_css } : {}),
+            ...(params.wait_until !== "networkidle0" ? { wait_until: params.wait_until } : {}),
+            ...(params.wait_for ? { wait_for: params.wait_for } : {}),
+            ...(params.wait_ms > 0 ? { wait_ms: params.wait_ms } : {}),
+            ...(params.timeout_ms !== 30000 ? { timeout_ms: params.timeout_ms } : {}),
           },
           ...(params.store ? { store: true } : {}),
           ...(params.filename ? { filename: params.filename } : {}),
