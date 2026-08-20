@@ -14,8 +14,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import axios, { AxiosError } from "axios";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, resolve, sep } from "node:path";
 
 const BASE_URL = (process.env.PDFPIPE_BASE_URL || "https://api.pdfpipe.xyz").replace(/\/$/, "");
 const REQUEST_TIMEOUT_MS = 60_000;
@@ -53,6 +53,39 @@ const GeneratePdfInput = z
       .string()
       .default("1cm")
       .describe("Uniform page margin as a CSS length, e.g. '1cm', '0', '0.5in'. Default '1cm'."),
+    store: z
+      .boolean()
+      .default(false)
+      .describe("If true, persist the PDF for later retrieval via pdfpipe_get_document. Returns document_id, document_url, and document_expires."),
+    filename: z
+      .string()
+      .max(200)
+      .optional()
+      .describe("Filename to associate with the stored document. Only used when store is true."),
+    header_html: z
+      .string()
+      .optional()
+      .describe("HTML rendered as a running page header. Class names .pageNumber, .totalPages, .date, .title, .url are substituted by the renderer on each page."),
+    footer_html: z
+      .string()
+      .optional()
+      .describe("HTML rendered as a running page footer. Same class substitution as header_html."),
+    print_background: z
+      .boolean()
+      .default(true)
+      .describe("Print background graphics and colors. Default true."),
+    tabular_nums: z
+      .boolean()
+      .default(false)
+      .describe("Force consistent digit widths via font-variant-numeric: tabular-nums. Fixes column misalignment in tables and invoices. Default false."),
+    deduplicate_images: z
+      .boolean()
+      .default(false)
+      .describe("Merge identical image XObjects in the output PDF. Reduces file size when the same image appears on many pages. Default false."),
+    pdf_a: z
+      .boolean()
+      .default(false)
+      .describe("Add PDF/A-1b XMP metadata to the document (best-effort conformance). Default false."),
   })
   .strict();
 
@@ -64,6 +97,9 @@ const GeneratePdfOutput = z.object({
   plan: z.string().optional(),
   usage: z.number().optional(),
   limit: z.number().optional(),
+  document_id: z.string().optional().describe("Archive ID (present when store: true)"),
+  document_url: z.string().optional().describe("Retrieval URL (present when store: true)"),
+  document_expires: z.string().optional().describe("ISO 8601 expiry timestamp (present when store: true)"),
 });
 
 function apiKey(): string {
@@ -122,7 +158,7 @@ function describeError(error: unknown): string {
 
 const server = new McpServer({
   name: "pdfpipe-mcp-server",
-  version: "0.1.0",
+  version: "0.3.0",
 });
 
 server.registerTool(
@@ -131,7 +167,9 @@ server.registerTool(
     title: "Generate a PDF with PDFPipe",
     description: `Generate a PDF document from HTML or a public URL using the PDFPipe API, and save it to disk.
 
-Use this to produce invoices, receipts, reports, certificates, statements, or any document, from HTML you compose or a web page you point at. The rendering runs server-side in a sandboxed Chromium, so the calling agent does not need a browser.
+Use this to produce invoices, receipts, reports, certificates, statements, or any document, from HTML you compose or a web page you point at. The rendering runs server-side in a sandboxed browser, so the calling agent does not need a browser.
+
+Pass store: true to persist the PDF and receive a document_id for later retrieval.
 
 Args:
   - html (string, optional): Raw HTML to render. Provide html OR url, not both.
@@ -140,19 +178,15 @@ Args:
   - format ('A4'|'A3'|'A5'|'Letter'|'Legal'|'Tabloid', optional): Page size, default 'A4'.
   - landscape (boolean, optional): Landscape orientation, default false.
   - margin (string, optional): CSS length page margin, e.g. '1cm', '0', default '1cm'.
+  - header_html (string, optional): HTML for a running page header. .pageNumber, .totalPages, .date classes substituted per page.
+  - footer_html (string, optional): HTML for a running page footer. Same substitution as header_html.
+  - tabular_nums (boolean, optional): Force consistent digit widths for tables/invoices. Default false.
+  - deduplicate_images (boolean, optional): Merge duplicate image XObjects to shrink file size. Default false.
+  - pdf_a (boolean, optional): Add PDF/A-1b metadata (best-effort). Default false.
+  - store (boolean, optional): Persist the PDF for later retrieval, default false.
+  - filename (string, optional): Filename for the stored document (used with store: true).
 
-Returns JSON:
-  {
-    "output_path": string,   // absolute path the PDF was written to
-    "size_bytes": number,    // size of the generated PDF
-    "plan": string,          // the API key's plan (e.g. "hobby")
-    "usage": number,         // documents used this month after this call
-    "limit": number          // monthly document limit for the plan
-  }
-
-Examples:
-  - "Make an invoice PDF": html="<h1>Invoice #4012</h1>...", output_path="./invoice-4012.pdf"
-  - "Save this web page as PDF": url="https://example.com/report", output_path="./report.pdf"
+Returns JSON with output_path, size_bytes, plan, usage, limit, and optionally document_id/document_url/document_expires when store is true.
 
 Errors return a message starting with "Error:" explaining the cause (bad key, limit reached, render failure, unreachable API).`,
     inputSchema: GeneratePdfInput.shape,
@@ -179,7 +213,21 @@ Errors return a message starting with "Error:" explaining the cause (bad key, li
       };
     }
 
+    // Validate and sandbox output_path before any network call (covers both relative and absolute).
+    const safeCwd = resolve(process.cwd());
+    const absPath = isAbsolute(params.output_path)
+      ? resolve(params.output_path)
+      : resolve(safeCwd, params.output_path);
+    if (!absPath.startsWith(safeCwd + sep) && absPath !== safeCwd) {
+      return {
+        isError: true,
+        content: [{ type: "text" as const, text: "Error: output_path must not escape the working directory." }],
+      };
+    }
+
     try {
+      // When store: true the API returns JSON (not PDF bytes).
+      const responseType = params.store ? "json" : "arraybuffer";
       const response = await axios.post(
         `${BASE_URL}/v1/pdf`,
         {
@@ -188,37 +236,66 @@ Errors return a message starting with "Error:" explaining the cause (bad key, li
             format: params.format,
             landscape: params.landscape,
             margin: params.margin,
+            print_background: params.print_background,
+            ...(params.header_html ? { header_html: params.header_html } : {}),
+            ...(params.footer_html ? { footer_html: params.footer_html } : {}),
+            ...(params.tabular_nums ? { tabular_nums: true } : {}),
+            ...(params.deduplicate_images ? { deduplicate_images: true } : {}),
+            ...(params.pdf_a ? { pdf_a: true } : {}),
           },
+          ...(params.store ? { store: true } : {}),
+          ...(params.filename ? { filename: params.filename } : {}),
         },
         {
-          responseType: "arraybuffer",
+          responseType,
           timeout: REQUEST_TIMEOUT_MS,
           headers: {
             Authorization: `Bearer ${apiKey()}`,
             "Content-Type": "application/json",
-            Accept: "application/pdf",
+            Accept: params.store ? "application/json" : "application/pdf",
           },
         }
       );
 
-      const buffer = Buffer.from(response.data as ArrayBuffer);
-      const absPath = isAbsolute(params.output_path)
-        ? params.output_path
-        : resolve(process.cwd(), params.output_path);
-      mkdirSync(dirname(absPath), { recursive: true });
-      writeFileSync(absPath, buffer);
-
-      const h = response.headers;
       const num = (v: unknown): number | undefined => {
         const n = Number(v);
         return Number.isFinite(n) ? n : undefined;
       };
+      const str = (v: unknown): string | undefined =>
+        typeof v === "string" && v ? v : undefined;
+
+      if (params.store) {
+        const data = response.data as Record<string, unknown>;
+        const output = {
+          output_path: absPath,
+          size_bytes: num(data["size_bytes"]) ?? 0,
+          plan: str(data["plan"]),
+          usage: num(data["used"]),
+          limit: num(data["limit"]),
+          document_id: str(data["document_id"]),
+          document_url: str(data["document_url"]),
+          document_expires: str(data["document_expires"]),
+        };
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }],
+          structuredContent: output,
+        };
+      }
+
+      const buffer = Buffer.from(response.data as ArrayBuffer);
+      await mkdir(dirname(absPath), { recursive: true });
+      await writeFile(absPath, buffer);
+
+      const h = response.headers;
       const output = {
         output_path: absPath,
         size_bytes: buffer.length,
-        plan: (h["x-pdfpipe-plan"] as string | undefined) ?? undefined,
+        plan: str(h["x-pdfpipe-plan"]),
         usage: num(h["x-pdfpipe-usage"]),
         limit: num(h["x-pdfpipe-limit"]),
+        document_id: str(h["x-pdfpipe-document-id"]),
+        document_url: str(h["x-pdfpipe-document-url"]),
+        document_expires: str(h["x-pdfpipe-document-expires"]),
       };
 
       return {
@@ -235,12 +312,9 @@ Errors return a message starting with "Error:" explaining the cause (bad key, li
 );
 
 async function main(): Promise<void> {
-  // Fail fast with a clear message if the key is missing.
   if (!process.env.PDFPIPE_API_KEY) {
-    console.error(
-      "WARNING: PDFPIPE_API_KEY is not set. Tool calls will fail until it is. " +
-        "Get a key at https://pdfpipe.xyz."
-    );
+    console.error("Error: PDFPIPE_API_KEY is not set. Get a key at https://pdfpipe.xyz.");
+    process.exit(1);
   }
   const transport = new StdioServerTransport();
   await server.connect(transport);
