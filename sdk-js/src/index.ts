@@ -131,8 +131,11 @@ export class PDFPipe {
     if (!res.ok) {
       let detail = `PDFPipe request failed with status ${res.status}.`;
       try {
-        const j = (await res.json()) as { message?: string };
-        if (j && typeof j.message === "string") detail = j.message;
+        // The API returns { error: <code>, detail: <human message> }. `message`
+        // is accepted only as a fallback; nothing on /v1/pdf emits it today.
+        const j = (await res.json()) as { detail?: string; message?: string };
+        if (j && typeof j.detail === "string") detail = j.detail;
+        else if (j && typeof j.message === "string") detail = j.message;
       } catch {
         /* keep the default message */
       }
