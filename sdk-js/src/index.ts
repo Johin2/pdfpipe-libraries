@@ -36,6 +36,16 @@ export interface PdfOptions {
   wait_for?: string;
   /** Extra delay before rendering, up to 10000 ms. */
   wait_ms?: number;
+  /** HTML string rendered as a running page header. Class names .pageNumber, .totalPages, .date, .title, .url are substituted by the renderer. */
+  header_html?: string;
+  /** HTML string rendered as a running page footer. Same class substitution as header_html. */
+  footer_html?: string;
+  /** Force consistent digit widths via font-variant-numeric: tabular-nums. Useful for tables and invoices. Defaults to false. */
+  tabular_nums?: boolean;
+  /** Post-process the PDF to merge identical image XObjects, reducing file size when the same image appears on multiple pages. Defaults to false. */
+  deduplicate_images?: boolean;
+  /** Add PDF/A-1b XMP metadata to the document (best-effort). Defaults to false. */
+  pdf_a?: boolean;
 }
 
 export interface PDFPipeOptions {
@@ -121,8 +131,8 @@ export class PDFPipe {
     if (!res.ok) {
       let detail = `PDFPipe request failed with status ${res.status}.`;
       try {
-        const j = (await res.json()) as { detail?: string };
-        if (j && typeof j.detail === "string") detail = j.detail;
+        const j = (await res.json()) as { message?: string };
+        if (j && typeof j.message === "string") detail = j.message;
       } catch {
         /* keep the default message */
       }

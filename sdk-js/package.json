@@ -1,6 +1,6 @@
 {
   "name": "pdfpipe-node",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "description": "Official PDFPipe SDK. Turn HTML or a URL into a PDF with one call.",
   "type": "module",
   "main": "./dist/index.js",
