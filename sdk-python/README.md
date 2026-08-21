@@ -48,7 +48,7 @@ Both return the raw PDF bytes. `options` is a dict, all keys optional:
 | `timeout_ms` | 1000 to 60000 | 30000 |
 | `wait_until` | load, domcontentloaded, networkidle0, networkidle2 | networkidle0 |
 | `wait_for` | CSS selector | none |
-| `wait_ms` | up to 10000 | 0 |
+| `wait_ms` | up to 5000 | 0 |
 | `header_html` | HTML string | none |
 | `footer_html` | HTML string | none |
 | `tabular_nums` | bool | False |

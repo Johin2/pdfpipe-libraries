@@ -34,7 +34,7 @@ export interface PdfOptions {
   wait_until?: "load" | "domcontentloaded" | "networkidle0" | "networkidle2";
   /** Wait for a CSS selector before rendering. */
   wait_for?: string;
-  /** Extra delay before rendering, up to 10000 ms. */
+  /** Extra delay before rendering. Values above 5000 ms are clamped to 5000 by the API. */
   wait_ms?: number;
   /** HTML string rendered as a running page header. Class names .pageNumber, .totalPages, .date, .title, .url are substituted by the renderer. */
   header_html?: string;
