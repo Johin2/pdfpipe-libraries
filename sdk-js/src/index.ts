@@ -1,7 +1,7 @@
 ﻿/**
  * Official PDFPipe SDK.
  *
- * Turn HTML or a URL into a PDF with one call, backed by real Chromium rendering.
+ * Turn HTML or a URL into a PDF with one call, backed by a real browser engine.
  *
  * ```ts
  * import { PDFPipe } from "pdfpipe-node";

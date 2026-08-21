@@ -1,6 +1,6 @@
 # pdfpipe-python
 
-Official Python SDK for [PDFPipe](https://pdfpipe.xyz). Turn HTML or a URL into a PDF with one call, backed by real Chromium rendering.
+Official Python SDK for [PDFPipe](https://pdfpipe.xyz). Turn HTML or a URL into a PDF with one call, backed by a real browser engine.
 
 ```bash
 pip install pdfpipe-python

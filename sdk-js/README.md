@@ -1,6 +1,6 @@
 ﻿# pdfpipe-node
 
-Official Node/TypeScript SDK for [PDFPipe](https://pdfpipe.xyz). Turn HTML or a URL into a PDF with one call, backed by real Chromium rendering, flat pricing, and 500 free documents a month.
+Official Node/TypeScript SDK for [PDFPipe](https://pdfpipe.xyz). Turn HTML or a URL into a PDF with one call, backed by a real browser engine, flat pricing, and 500 free documents a month.
 
 ```bash
 npm install pdfpipe-node
